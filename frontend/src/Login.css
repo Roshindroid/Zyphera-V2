@@ -1,0 +1,28 @@
+.split-container { display: flex; height: 100vh; width: 100%; overflow: hidden; }
+.split-side { flex: 1; }
+.split-side.login {
+  background-image: url('./assets/images/auth/auth_background.jpg');
+  background-size: cover;
+  background-position: center;
+}
+.form-side {
+  display: flex;
+  justify-content: center;
+  background-color: #ffffff;
+  padding: 60px 20px;
+  overflow-y: auto;
+}
+.login-form-wrapper {
+  width: 100%;
+  max-width: 420px;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+.form-side h2 { font-family: 'Poppins', sans-serif; font-weight: 700; color: #0d1117; font-size: 1.75rem; margin-bottom: 0.35rem; }
+.form-side p { color: #64748b; }
+
+.split-side.register {
+  background-image: url('./assets/images/auth/auth_background.jpg');
+  background-size: cover;
+  background-position: center;
+}
