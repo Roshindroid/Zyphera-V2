@@ -68,7 +68,7 @@ export default function Navbar() {
                                         <li><Link className="dropdown-item py-2" to="/buyer/profile"><i className="bi bi-person me-2"></i>Profile</Link></li>
                                     </>}
                                     {(user.role === 'admin' || user.role === 'super_admin') && <>
-                                        <li><Link className="dropdown-item py-2" to="/admin/dashboard"><i className="bi bi-speedometer2 me-2"></i>Dashboard</Link></li>
+                                        <li><Link className="dropdown-item py-2" to="/admin/dashboard" target='blanke'><i className="bi bi-speedometer2 me-2"></i>Dashboard</Link></li>
                                     </>}
                                     <li><hr className="dropdown-divider" /></li>
                                     <li><button className="dropdown-item py-2 text-danger" onClick={handleLogout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
