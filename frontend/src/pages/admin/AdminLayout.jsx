@@ -8,6 +8,7 @@ const navItems = [
     { to: '/admin/services', icon: 'bi-tools', label: 'Services' },
     { to: '/admin/categories', icon: 'bi-grid', label: 'Categories' },
     { to: '/admin/bookings', icon: 'bi-calendar-check', label: 'Bookings' },
+    { to: '/admin/reviews', icon: 'bi-star', label: 'Reviews' },
     { to: '/admin/requests', icon: 'bi-envelope-paper', label: 'Requests' },
     { to: '/admin/settings', icon: 'bi-gear', label: 'Settings' },
 ]

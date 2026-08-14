@@ -14,8 +14,13 @@ class Booking(models.Model):
     service = models.ForeignKey('accounts.Service', on_delete=models.CASCADE)
     booking_date = models.DateTimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    base_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    travel_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    platform_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     address = models.TextField()
+    buyer_lat = models.FloatField(null=True, blank=True)
+    buyer_lng = models.FloatField(null=True, blank=True)
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

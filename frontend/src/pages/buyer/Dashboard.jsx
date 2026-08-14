@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
+import ReviewModal from '../../components/ReviewModal'
 
 export default function BuyerDashboard() {
     const { user } = useAuth()
     const navigate = useNavigate()
     const [bookings, setBookings] = useState([])
+    const [reviewBooking, setReviewBooking] = useState(null)
 
     const fetchBookings = async () => {
         api.get('/buyer/bookings/').then(r => setBookings(r.data)).catch(() => {})
@@ -44,6 +46,13 @@ export default function BuyerDashboard() {
 
     return (
         <>
+            {reviewBooking && (
+                <ReviewModal
+                    booking={reviewBooking}
+                    onClose={() => setReviewBooking(null)}
+                    onReviewed={fetchBookings}
+                />
+            )}
             <nav className="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-3 mb-4">
                 <div className="container">
                     <Link className="navbar-brand brand-name" to="/" style={{ fontSize: '1.5rem', color: '#007bff' }}>Zyphera</Link>
@@ -139,7 +148,13 @@ export default function BuyerDashboard() {
                                                 <td className="small text-muted">{new Date(b.created_at).toLocaleDateString()}</td>
                                                 <td><span className={`badge px-3 rounded-pill ${statusBadge(b.status)}`}>{b.status.charAt(0).toUpperCase() + b.status.slice(1)}</span></td>
                                                 <td className="text-end fw-bold">₹{b.total_price}</td>
-                                                {['pending', 'accepted'].includes(b.status) ? (
+                                                {b.status === 'completed' && !b.has_review ? (
+                                                    <td className="text-end">
+                                                        <button className="btn btn-sm btn-outline-warning rounded-pill" onClick={() => setReviewBooking(b)}>
+                                                            <i className="bi bi-star me-1"></i>Review
+                                                        </button>
+                                                    </td>
+                                                ) : ['pending', 'accepted'].includes(b.status) ? (
                                                     <td
                                                         className="text-end"
                                                         onClick={() => handleCancelBooking(b)}

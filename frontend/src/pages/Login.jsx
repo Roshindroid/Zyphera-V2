@@ -9,9 +9,13 @@ export default function Login() {
     const navigate = useNavigate()
     const [form, setForm] = useState({ username: '', password: '' })
     const [showPassword, setShowPassword] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
+
+        // Ignore duplicate submissions while a request is in flight
+        if (isSubmitting) return
 
         if (!validateLoginIdentifier(form.username)) {
             toast('error', 'Invalid login', 'Please enter a valid email or a username with at least 3 characters.')
@@ -27,6 +31,8 @@ export default function Login() {
             return
         }
 
+        setIsSubmitting(true)
+
         try {
             const u = await login(form.username, form.password)
             await toast('success', 'Login Successful', 'Welcome back!')
@@ -34,6 +40,8 @@ export default function Login() {
             else if (u.role === 'buyer') navigate('/')
             else navigate('/')
         } catch (err) {
+            // Re-enable the form ONLY on failure; on success we redirect away.
+            setIsSubmitting(false)
             toast('error', 'Login Failed', err.response?.data?.error || 'Invalid username or password')
         }
     }
@@ -61,6 +69,7 @@ export default function Login() {
                                     style={{ borderRadius: '0 12px 12px 0', borderLeft: 'none' }}
                                     value={form.username}
                                     onChange={e => setForm({ ...form, username: e.target.value })}
+                                    disabled={isSubmitting}
                                     required
                                 />
                             </div>
@@ -79,11 +88,13 @@ export default function Login() {
                                     style={{ borderRadius: 0, borderLeft: 'none' }}
                                     value={form.password}
                                     onChange={e => setForm({ ...form, password: e.target.value })}
+                                    disabled={isSubmitting}
                                     required
                                 />
                                 <button className="input-group-text bg-white border-start-0" type="button"
                                     style={{ borderRadius: '0 12px 12px 0', border: '1.5px solid #e2e8f0', borderLeft: 'none', cursor: 'pointer' }}
-                                    onClick={() => setShowPassword(!showPassword)}>
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    disabled={isSubmitting}>
                                     <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'} text-muted`}></i>
                                 </button>
                             </div>
@@ -97,7 +108,16 @@ export default function Login() {
                             <a href="#" className="text-decoration-none" style={{ fontSize: '0.88rem' }}>Forgot password?</a>
                         </div>
 
-                        <button type="submit" className="btn btn-primary w-100 mb-3">Sign In</button>
+                        <button type="submit" className="btn btn-primary w-100 mb-3" disabled={isSubmitting}>
+                            {isSubmitting ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Signing in...
+                                </>
+                            ) : (
+                                'Sign In'
+                            )}
+                        </button>
 
                         <p className="text-center mb-0" style={{ fontSize: '0.9rem', color: '#64748b' }}>
                             Don't have an account? <Link to="/register" className="text-decoration-none fw-semibold">Register</Link>

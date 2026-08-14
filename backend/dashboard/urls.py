@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     AdminStatsView, AdminUsersView, AdminSellerApprovalsView,
     AdminServicesView, AdminCategoriesView, AdminBookingsView, AdminRequestsView,
+    AdminReviewsView,
 )
 
 urlpatterns = [
@@ -17,4 +18,6 @@ urlpatterns = [
     path('categories/<int:pk>/', AdminCategoriesView.as_view()),
     path('bookings/', AdminBookingsView.as_view()),
     path('requests/', AdminRequestsView.as_view()),
+    path('reviews/', AdminReviewsView.as_view()),
+    path('reviews/<int:pk>/', AdminReviewsView.as_view()),
 ]

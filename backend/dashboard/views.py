@@ -2,11 +2,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, Count
+from django.db.models.functions import TruncMonth
 
-from accounts.models import User, SellerAdditionalDetails, Service, Category, PostRequest
+from accounts.models import User, SellerAdditionalDetails, Service, Category, PostRequest, Review
 from bookings.models import Booking
-from accounts.serializers import UserSerializer, ServiceSerializer, BookingSerializer, CategorySerializer
+from accounts.serializers import UserSerializer, ServiceSerializer, BookingSerializer, CategorySerializer, ReviewSerializer
 
 
 def is_admin(user):
@@ -29,6 +30,27 @@ class AdminStatsView(APIView):
             'total_services': Service.objects.count(),
             'total_categories': Category.objects.count(),
             'total_requests': PostRequest.objects.count(),
+            'revenue_by_month': [
+                {'month': str(r['month'])[:7], 'revenue': str(r['revenue'])}
+                for r in Booking.objects.filter(status='completed')
+                    .annotate(month=TruncMonth('created_at'))
+                    .values('month')
+                    .annotate(revenue=Sum('total_price'))
+                    .order_by('month')
+            ],
+            'top_services': [
+                {'title': r['service__title'], 'bookings': r['count']}
+                for r in Booking.objects.values('service__title')
+                    .annotate(count=Count('id'))
+                    .order_by('-count')[:5]
+            ],
+            'top_sellers': [
+                {'name': r['service__seller__first_name'] or r['service__seller__username'], 'earnings': str(r['earnings'])}
+                for r in Booking.objects.filter(status='completed')
+                    .values('service__seller__first_name', 'service__seller__username')
+                    .annotate(earnings=Sum('total_price'))
+                    .order_by('-earnings')[:5]
+            ],
             'latest_pending': [
                 {
                     'id': s.pk,
@@ -191,3 +213,30 @@ class AdminRequestsView(APIView):
             }
             for r in reqs
         ])
+
+
+class AdminReviewsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not is_admin(request.user):
+            return Response({'error': 'Forbidden'}, status=403)
+        reviews = Review.objects.all().select_related('buyer', 'service', 'service__category').order_by('-created_at')
+        return Response([
+            {
+                'id': r.id,
+                'rating': r.rating,
+                'comment': r.comment,
+                'buyer_name': r.buyer.first_name or r.buyer.username,
+                'service_title': r.service.title,
+                'category_name': r.service.category.name if r.service.category else 'General',
+                'created_at': r.created_at,
+            }
+            for r in reviews
+        ])
+
+    def delete(self, request, pk):
+        if not is_admin(request.user):
+            return Response({'error': 'Forbidden'}, status=403)
+        get_object_or_404(Review, pk=pk).delete()
+        return Response({'status': 'deleted'})

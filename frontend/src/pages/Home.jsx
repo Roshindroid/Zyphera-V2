@@ -102,11 +102,13 @@ export default function Home() {
                                         <i className={`bi ${service.category?.icon_class || 'bi-briefcase-fill'}`} style={{ fontSize: '2.75rem', color: '#007bff' }}></i>
                                     </div>
                                     <div className="card-body d-flex flex-column">
-                                        <h5 className="card-title">{service.title}</h5>
+                                        <h5 className="card-title">
+                                            <Link to={`/services/${service.id}`} className="text-decoration-none text-dark">{service.title}</Link>
+                                        </h5>
                                         <p className="card-text">{service.description.split(' ').slice(0, 20).join(' ')}...</p>
                                         <div className="d-flex justify-content-between align-items-center mt-auto pt-3">
                                             <span className="text-primary fw-bold">₹{service.price}/{service.price_unit}</span>
-                                            <Link to={`/services`} className="btn btn-primary btn-sm">Book Now</Link>
+                                            <Link to={`/services/${service.id}`} className="btn btn-primary btn-sm">View & Book</Link>
                                         </div>
                                     </div>
                                 </div>

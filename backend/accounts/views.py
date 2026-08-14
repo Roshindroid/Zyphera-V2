@@ -8,11 +8,12 @@ from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404
 
 from django.contrib.auth.hashers import check_password
-from .models import User, SellerAdditionalDetails, Category, Service, Cart, CartItem, PostRequest
+from .models import User, SellerAdditionalDetails, Category, Service, Cart, CartItem, PostRequest, ServiceLocation, Review
 from .serializers import (
     RegisterSerializer, UserSerializer, CategorySerializer, ServiceSerializer,
-    BookingSerializer, CartItemSerializer, SellerSerializer
+    BookingSerializer, CartItemSerializer, SellerSerializer, ServiceLocationSerializer, ReviewSerializer
 )
+from .utils import haversine, calculate_travel_fee
 from bookings.models import Booking
 
 
@@ -81,12 +82,24 @@ class ProfileView(APIView):
         user.email = data.get('email', user.email)
         user.phone = data.get('phone', user.phone)
         user.location = data.get('location', user.location)
+        if 'latitude' in data:
+            user.latitude = data.get('latitude')
+        if 'longitude' in data:
+            user.longitude = data.get('longitude')
+        if 'place_id' in data:
+            user.place_id = data.get('place_id')
         user.save()
 
         if user.role == 'seller':
             details, _ = SellerAdditionalDetails.objects.get_or_create(user=user, defaults={'description': ''})
             details.experience = int(data.get('experience', details.experience))
             details.description = data.get('bio', details.description)
+            if 'business_address' in data:
+                details.business_address = data.get('business_address')
+            if 'business_lat' in data:
+                details.business_lat = data.get('business_lat')
+            if 'business_lng' in data:
+                details.business_lng = data.get('business_lng')
             details.save()
 
         return Response(UserSerializer(user).data)
@@ -118,6 +131,62 @@ class ServiceListView(generics.ListAPIView):
             return qs.order_by('-created_at')[:6]
 
         return qs.order_by('-created_at')
+
+
+class NearbyServicesView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            buyer_lat = float(request.query_params.get('lat'))
+            buyer_lng = float(request.query_params.get('lng'))
+        except (TypeError, ValueError):
+            return Response({'error': 'lat and lng query params are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        services = Service.objects.filter(
+            is_active=True,
+            seller__selleradditionaldetails__is_approved=True,
+            seller__selleradditionaldetails__is_available=True,
+            location_data__isnull=False,
+        ).select_related('category', 'seller', 'location_data')
+
+        category = request.query_params.get('category')
+        if category:
+            services = services.filter(
+                Q(category__slug=category) | Q(category__name__iexact=category)
+            )
+
+        results = []
+        for service in services:
+            loc = service.location_data
+            distance = haversine(buyer_lat, buyer_lng, loc.latitude, loc.longitude)
+            if distance > float(loc.radius_km):
+                continue
+            travel_fee = calculate_travel_fee(distance, loc)
+            display_price = service.price + travel_fee + loc.platform_fee
+            results.append({
+                'id': service.id,
+                'title': service.title,
+                'description': service.description,
+                'price': str(service.price),
+                'price_unit': service.price_unit,
+                'category': {'id': service.category.id, 'name': service.category.name, 'icon_class': service.category.icon_class} if service.category else None,
+                'seller_name': service.seller.first_name or service.seller.username,
+                'distance_km': round(distance, 1),
+                'travel_fee': str(travel_fee),
+                'platform_fee': str(loc.platform_fee),
+                'display_price': str(display_price),
+                'is_free_travel': travel_fee == 0,
+                'location_data': {
+                    'address': loc.address,
+                    'latitude': float(loc.latitude),
+                    'longitude': float(loc.longitude),
+                    'radius_km': loc.radius_km,
+                },
+            })
+
+        results.sort(key=lambda x: x['distance_km'])
+        return Response(results)
 
 
 class AvailableSellersView(generics.ListAPIView):
@@ -249,7 +318,7 @@ class SellerServicesView(APIView):
     def get(self, request):
         if request.user.role != 'seller':
             return Response({'error': 'Forbidden'}, status=403)
-        services = Service.objects.filter(seller=request.user).select_related('category').order_by('-created_at')
+        services = Service.objects.filter(seller=request.user).select_related('category', 'location_data').order_by('-created_at')
         return Response(ServiceSerializer(services, many=True, context={'request': request}).data)
 
     def post(self, request):
@@ -257,7 +326,7 @@ class SellerServicesView(APIView):
             return Response({'error': 'Forbidden'}, status=403)
         data = request.data.copy()
         category_id = data.get('category_id') or data.get('category')
-        Service.objects.create(
+        service = Service.objects.create(
             seller=request.user,
             title=data.get('title'),
             description=data.get('description'),
@@ -266,7 +335,22 @@ class SellerServicesView(APIView):
             category_id=category_id or None,
             image=request.FILES.get('image'),
         )
-        return Response({'status': 'created'}, status=status.HTTP_201_CREATED)
+        # create ServiceLocation if coordinates provided
+        if data.get('latitude') and data.get('longitude'):
+            ServiceLocation.objects.create(
+                service=service,
+                address=data.get('address', ''),
+                latitude=float(data.get('latitude')),
+                longitude=float(data.get('longitude')),
+                radius_km=float(data.get('radius_km', 10)),
+                free_radius_km=float(data.get('free_radius_km', 2)),
+                price_per_km=data.get('price_per_km', 0),
+                platform_fee=data.get('platform_fee', 0),
+                peak_hour_pct=float(data.get('peak_hour_pct', 0)),
+                weekend_pct=float(data.get('weekend_pct', 0)),
+                emergency_fee=data.get('emergency_fee', 0),
+            )
+        return Response({'status': 'created', 'id': service.id}, status=status.HTTP_201_CREATED)
 
 
 class ToggleServiceStatusView(APIView):
@@ -348,9 +432,110 @@ class DeleteAccountView(APIView):
 
 # --- Buyer Bookings ---
 
+class ServiceLocationUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        service = get_object_or_404(Service, pk=pk, seller=request.user)
+        data = request.data
+        loc, _ = ServiceLocation.objects.get_or_create(service=service, defaults={
+            'address': '', 'latitude': 0, 'longitude': 0
+        })
+        float_fields = ['latitude', 'longitude', 'radius_km', 'free_radius_km', 'peak_hour_pct', 'weekend_pct']
+        other_fields = ['address', 'price_per_km', 'platform_fee', 'emergency_fee']
+
+        for field in float_fields:
+            if field in data and data[field] is not None and data[field] != '':
+                setattr(loc, field, float(data[field]))
+        for field in other_fields:
+            if field in data and data[field] is not None:
+                setattr(loc, field, data[field])
+
+        loc.save()
+        return Response(ServiceLocationSerializer(loc).data)
+
+
 class BuyerBookingsView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = BookingSerializer
 
     def get_queryset(self):
         return Booking.objects.filter(buyer=self.request.user).select_related('service', 'service__category').order_by('-created_at')
+
+
+class ServiceDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        service = get_object_or_404(
+            Service.objects.select_related('category', 'seller', 'seller__selleradditionaldetails', 'location_data'),
+            pk=pk, is_active=True
+        )
+        reviews = service.reviews.select_related('buyer').order_by('-created_at')
+        avg = round(sum(r.rating for r in reviews) / len(reviews), 1) if reviews else None
+        seller = service.seller
+        details = SellerAdditionalDetails.objects.filter(user=seller).first()
+        return Response({
+            **ServiceSerializer(service, context={'request': request}).data,
+            'reviews': ReviewSerializer(reviews, many=True).data,
+            'seller': {
+                'id': seller.id,
+                'name': seller.first_name or seller.username,
+                'bio': details.description if details else '',
+                'experience': details.experience if details else 0,
+                'business_address': details.business_address if details else None,
+            },
+        })
+
+
+class PublicSellerView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        seller = get_object_or_404(User, pk=pk, role='seller')
+        details = SellerAdditionalDetails.objects.filter(user=seller, is_approved=True).first()
+        if not details:
+            return Response({'error': 'Seller not found or not approved.'}, status=status.HTTP_404_NOT_FOUND)
+        services = Service.objects.filter(seller=seller, is_active=True).select_related('category')
+        all_reviews = Review.objects.filter(service__seller=seller).select_related('buyer')
+        avg = round(sum(r.rating for r in all_reviews) / len(all_reviews), 1) if all_reviews else None
+        return Response({
+            'id': seller.id,
+            'name': seller.first_name or seller.username,
+            'bio': details.description,
+            'experience': details.experience,
+            'business_address': details.business_address,
+            'avg_rating': avg,
+            'review_count': all_reviews.count(),
+            'services': ServiceSerializer(services, many=True, context={'request': request}).data,
+        })
+
+
+class ReviewCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from bookings.models import Booking
+        booking_id = request.data.get('booking_id')
+        booking = get_object_or_404(Booking, pk=booking_id, buyer=request.user, status='completed')
+        if hasattr(booking, 'review'):
+            return Response({'error': 'You have already reviewed this booking.'}, status=status.HTTP_400_BAD_REQUEST)
+        rating = int(request.data.get('rating', 0))
+        if not 1 <= rating <= 5:
+            return Response({'error': 'Rating must be between 1 and 5.'}, status=status.HTTP_400_BAD_REQUEST)
+        review = Review.objects.create(
+            booking=booking,
+            service=booking.service,
+            buyer=request.user,
+            rating=rating,
+            comment=request.data.get('comment', ''),
+        )
+        return Response(ReviewSerializer(review).data, status=status.HTTP_201_CREATED)
+
+
+class ServiceReviewsView(generics.ListAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = ReviewSerializer
+
+    def get_queryset(self):
+        return Review.objects.filter(service_id=self.kwargs['pk']).select_related('buyer').order_by('-created_at')

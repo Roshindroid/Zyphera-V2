@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
+import ReviewModal from '../../components/ReviewModal'
 
 export default function BuyerBookings() {
     const { user } = useAuth()
     const navigate = useNavigate()
     const [bookings, setBookings] = useState([])
     const [loading, setLoading] = useState(true)
+    const [reviewBooking, setReviewBooking] = useState(null)
 
     const fetchBookings = async () => {
         try {
@@ -21,9 +23,7 @@ export default function BuyerBookings() {
         }
     }
 
-    useEffect(() => {
-        fetchBookings()
-    }, [])
+    useEffect(() => { fetchBookings() }, [])
 
     const statusBadge = (s) => ({
         pending: 'bg-warning-subtle text-warning border-warning-subtle',
@@ -38,6 +38,13 @@ export default function BuyerBookings() {
 
     return (
         <>
+            {reviewBooking && (
+                <ReviewModal
+                    booking={reviewBooking}
+                    onClose={() => setReviewBooking(null)}
+                    onReviewed={fetchBookings}
+                />
+            )}
             <nav className="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-3 mb-4">
                 <div className="container">
                     <Link className="navbar-brand brand-name" to="/" style={{ fontSize: '1.5rem', color: '#007bff' }}>Zyphera</Link>
@@ -71,15 +78,17 @@ export default function BuyerBookings() {
                                     <th className="border-0 small text-muted">Service</th>
                                     <th className="border-0 small text-muted">Date</th>
                                     <th className="border-0 small text-muted">Status</th>
-                                    <th className="border-0 small text-muted text-end">Price</th>
-                                    <th className="border-0 small text-muted text-end">Actions</th>
+                                    <th className="border-0 small text-muted text-end">Base</th>
+                                    <th className="border-0 small text-muted text-end">Travel</th>
+                                    <th className="border-0 small text-muted text-end">Total</th>
+                                    <th className="border-0 small text-muted text-end">Review</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {loading ? (
-                                    <tr><td colSpan="5" className="text-center py-4 text-muted small">Loading...</td></tr>
+                                    <tr><td colSpan="7" className="text-center py-4 text-muted small">Loading...</td></tr>
                                 ) : pastBookings.length === 0 ? (
-                                    <tr><td colSpan="5" className="text-center py-4 text-muted small">No past bookings yet.</td></tr>
+                                    <tr><td colSpan="7" className="text-center py-4 text-muted small">No past bookings yet.</td></tr>
                                 ) : pastBookings.map(b => (
                                     <tr key={b.id}>
                                         <td>
@@ -94,8 +103,21 @@ export default function BuyerBookings() {
                                                 {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
                                             </span>
                                         </td>
+                                        <td className="text-end small">₹{b.base_price ?? b.total_price}</td>
+                                        <td className="text-end small">
+                                            {parseFloat(b.travel_fee ?? 0) > 0
+                                                ? `₹${b.travel_fee}`
+                                                : <span className="text-success">Free</span>}
+                                        </td>
                                         <td className="text-end fw-bold">₹{b.total_price}</td>
-                                        <td className="text-end text-muted small">—</td>
+                                        <td className="text-end">
+                                            {b.status === 'completed' && !b.has_review && (
+                                                <button className="btn btn-sm btn-outline-warning rounded-pill" onClick={() => setReviewBooking(b)}>
+                                                    <i className="bi bi-star me-1"></i>Review
+                                                </button>
+                                            )}
+                                            {b.has_review && <span className="text-success small"><i className="bi bi-check-circle me-1"></i>Reviewed</span>}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -106,4 +128,3 @@ export default function BuyerBookings() {
         </>
     )
 }
-

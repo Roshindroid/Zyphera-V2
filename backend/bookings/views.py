@@ -4,7 +4,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 
-from accounts.models import Service
+from accounts.models import Service, ServiceLocation
+from accounts.utils import haversine, calculate_travel_fee
+from decimal import Decimal
 from .models import Booking
 from accounts.serializers import BookingSerializer
 
@@ -14,12 +16,32 @@ class BookingCreateView(APIView):
 
     def post(self, request):
         service = get_object_or_404(Service, pk=request.data.get('service_id'), is_active=True)
+        base_price = service.price
+        travel_fee = Decimal('0.00')
+        platform_fee = Decimal('0.00')
+
+        buyer_lat = request.data.get('buyer_lat')
+        buyer_lng = request.data.get('buyer_lng')
+
+        loc = ServiceLocation.objects.filter(service=service).first()
+        if loc and buyer_lat and buyer_lng:
+            distance = haversine(float(buyer_lat), float(buyer_lng), loc.latitude, loc.longitude)
+            travel_fee = calculate_travel_fee(distance, loc)
+            platform_fee = loc.platform_fee
+
+        total_price = base_price + travel_fee + platform_fee
+
         booking = Booking.objects.create(
             buyer=request.user,
             service=service,
             booking_date=request.data.get('booking_date'),
-            total_price=request.data.get('total_price', service.price),
+            base_price=base_price,
+            travel_fee=travel_fee,
+            platform_fee=platform_fee,
+            total_price=total_price,
             address=request.data.get('address', ''),
+            buyer_lat=buyer_lat,
+            buyer_lng=buyer_lng,
             notes=request.data.get('notes', ''),
         )
         return Response(BookingSerializer(booking).data, status=status.HTTP_201_CREATED)

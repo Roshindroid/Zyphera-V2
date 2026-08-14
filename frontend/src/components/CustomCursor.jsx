@@ -15,6 +15,7 @@ export default function CustomCursor() {
     }
 
     const tick = () => {
+      if (!dotRef.current || !ringRef.current) return
       dotRef.current.style.transform = `translate(${mouse.current.x}px, ${mouse.current.y}px)`
 
       ringPos.current.x = lerp(ringPos.current.x, mouse.current.x, 0.1)

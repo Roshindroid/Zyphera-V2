@@ -2,19 +2,34 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
+import LocationPicker from '../../components/LocationPicker'
 
 export default function SellerProfile() {
     const { user } = useAuth()
     const navigate = useNavigate()
-    const [form, setForm] = useState({ full_name: '', email: '', phone: '', location: '', experience: 0, bio: '' })
+    const [form, setForm] = useState({ full_name: '', email: '', phone: '', experience: 0, bio: '' })
+    const [businessLocation, setBusinessLocation] = useState(null)
+    const [showPicker, setShowPicker] = useState(false)
     const [saved, setSaved] = useState(false)
 
     useEffect(() => {
         api.get('/profile/').then(r => {
             const u = r.data
-            setForm({ full_name: u.full_name || '', email: u.email || '', phone: u.phone || '', location: u.location || '', experience: u.experience || 0, bio: u.bio || '' })
+            setForm({ full_name: u.full_name || '', email: u.email || '', phone: u.phone || '', experience: u.experience || 0, bio: u.bio || '' })
+            if (u.business_lat && u.business_lng) {
+                setBusinessLocation({ lat: u.business_lat, lng: u.business_lng, address: u.business_address || '' })
+            }
         }).catch(() => {})
     }, [])
+
+    const handleBusinessLocationConfirm = async (loc) => {
+        await api.patch('/profile/', {
+            business_address: loc.address,
+            business_lat: loc.lat,
+            business_lng: loc.lng,
+        })
+        setBusinessLocation(loc)
+    }
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -25,6 +40,13 @@ export default function SellerProfile() {
 
     return (
         <div className="bg-light min-vh-100">
+            {showPicker && (
+                <LocationPicker
+                    onClose={() => setShowPicker(false)}
+                    onConfirm={handleBusinessLocationConfirm}
+                    initialLocation={businessLocation}
+                />
+            )}
             <nav className="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-3 mb-5">
                 <div className="container">
                     <Link className="navbar-brand brand-name" to="/" style={{ fontSize: '1.5rem' }}>Zyphera</Link>
@@ -83,13 +105,45 @@ export default function SellerProfile() {
                                     <label className="form-label">Experience (Years)</label>
                                     <input type="number" className="form-control" value={form.experience} onChange={e => setForm({ ...form, experience: e.target.value })} min="0" />
                                 </div>
-                                <div className="col-md-6">
-                                    <label className="form-label">Location</label>
-                                    <input type="text" className="form-control" placeholder="e.g. Kozhikode, Kerala" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
-                                </div>
                                 <div className="col-12">
                                     <label className="form-label">Short Bio / Description</label>
                                     <textarea className="form-control" rows="4" value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })}></textarea>
+                                </div>
+
+                                <div className="col-12 mt-5">
+                                    <h5 className="fw-bold mb-0">Business Location</h5>
+                                    <p className="text-muted small mb-0">Where your business operates from. Used to calculate distance to customers.</p>
+                                    <hr className="mt-2 mb-0 opacity-50" />
+                                </div>
+                                <div className="col-12">
+                                    <div className="d-flex align-items-center gap-3 flex-wrap">
+                                        <div className="flex-grow-1">
+                                            <div className="input-group">
+                                                <span className="input-group-text bg-light border-end-0">
+                                                    <i className="bi bi-building text-primary"></i>
+                                                </span>
+                                                <input
+                                                    type="text"
+                                                    className="form-control bg-light border-start-0"
+                                                    readOnly
+                                                    value={businessLocation?.address || 'No business location set'}
+                                                />
+                                            </div>
+                                            {businessLocation?.lat && (
+                                                <p className="text-muted small mt-1 mb-0">
+                                                    {businessLocation.lat.toFixed(5)}, {businessLocation.lng.toFixed(5)}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="btn btn-primary btn-sm"
+                                            onClick={() => setShowPicker(true)}
+                                        >
+                                            <i className="bi bi-map me-1"></i>
+                                            {businessLocation ? 'Change' : 'Set Location'}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="col-12 mt-5">
                                     <button type="submit" className="btn btn-primary w-100 py-3">Update Seller Profile</button>

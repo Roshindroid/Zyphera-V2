@@ -63,7 +63,15 @@ export default function MyServices() {
                                     <p className="card-text small text-muted">{service.description.split(' ').slice(0, 15).join(' ')}...</p>
                                     <div className="d-flex justify-content-between align-items-center mt-3">
                                         <span className="fw-bold">₹{service.price}/{service.price_unit}</span>
-                                        <span className={`badge ${service.is_active ? 'bg-success' : 'bg-secondary'}`}>{service.is_active ? 'Active' : 'Paused'}</span>
+                                        <div className="d-flex align-items-center gap-2">
+                                            {service.location_data
+                                                ? <span className="badge bg-success-subtle text-success border border-success-subtle" title={service.location_data.address || `${service.location_data.latitude}, ${service.location_data.longitude}`}><i className="bi bi-geo-alt-fill me-1"></i>{service.location_data.latitude != null && service.location_data.longitude != null ? `${parseFloat(service.location_data.latitude).toFixed(4)}, ${parseFloat(service.location_data.longitude).toFixed(4)}` : 'Located'}</span>
+                                                : <Link to={`/seller/services/${service.id}/location`} className="badge bg-warning-subtle text-warning border border-warning-subtle text-decoration-none"><i className="bi bi-geo-alt me-1"></i>Set Location</Link>
+                                            }
+                                            <Link to={`/seller/services/${service.id}/location`} className="btn btn-outline-primary btn-sm" title="Edit location">
+                                                <i className="bi bi-map"></i>
+                                            </Link>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

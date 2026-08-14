@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../api/axios'
 import AdminLayout from './AdminLayout'
@@ -21,19 +21,63 @@ const StatCard = ({ label, value, icon, color }) => (
 
 export default function AdminDashboard() {
     const [data, setData] = useState(null)
+    const chartRef = useRef(null)
+    const chartInstanceRef = useRef(null)
 
+    const fetchData = () => api.get('/admin/stats/').then(r => setData(r.data)).catch(() => {})
+
+    useEffect(() => { fetchData() }, [])
+
+    // draw/update chart whenever data changes
     useEffect(() => {
-        api.get('/admin/stats/').then(r => setData(r.data)).catch(() => {})
-    }, [])
+        if (!data?.revenue_by_month?.length || !chartRef.current) return
+
+        const months = data.revenue_by_month.map(r => r.month)
+        const revenues = data.revenue_by_month.map(r => parseFloat(r.revenue))
+
+        const draw = (Chart) => {
+            if (chartInstanceRef.current) chartInstanceRef.current.destroy()
+            chartInstanceRef.current = new Chart(chartRef.current, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'Revenue (₹)',
+                        data: revenues,
+                        backgroundColor: 'rgba(0,123,255,0.15)',
+                        borderColor: '#007bff',
+                        borderWidth: 2,
+                        borderRadius: 8,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } },
+                },
+            })
+        }
+
+        if (window.Chart) {
+            draw(window.Chart)
+        } else {
+            const s = document.createElement('script')
+            s.src = 'https://cdn.jsdelivr.net/npm/chart.js'
+            s.onload = () => draw(window.Chart)
+            document.head.appendChild(s)
+        }
+
+        return () => { chartInstanceRef.current?.destroy() }
+    }, [data])
 
     const approveProvider = async (id) => {
         await api.post(`/admin/approvals/${id}/approve/`)
-        api.get('/admin/stats/').then(r => setData(r.data)).catch(() => {})
+        fetchData()
     }
 
     const rejectProvider = async (id) => {
         await api.delete(`/admin/approvals/${id}/reject/`)
-        api.get('/admin/stats/').then(r => setData(r.data)).catch(() => {})
+        fetchData()
     }
 
     if (!data) return <AdminLayout title="Dashboard"><p className="text-muted">Loading...</p></AdminLayout>
@@ -53,6 +97,53 @@ export default function AdminDashboard() {
                 {stats.map((s, i) => <StatCard key={i} {...s} />)}
             </div>
 
+            {/* Revenue Chart */}
+            {data.revenue_by_month?.length > 0 && (
+                <div className="card border-0 shadow-sm p-4 mb-5" style={{ borderRadius: 16 }}>
+                    <h5 className="fw-bold mb-4">Monthly Revenue</h5>
+                    <canvas ref={chartRef} height={90}></canvas>
+                </div>
+            )}
+
+            <div className="row g-4 mb-5">
+                {/* Top Services */}
+                <div className="col-lg-6">
+                    <div className="card border-0 shadow-sm p-4 h-100" style={{ borderRadius: 16 }}>
+                        <h5 className="fw-bold mb-4">Top Services by Bookings</h5>
+                        {data.top_services?.length === 0 ? (
+                            <p className="text-muted small">No data yet.</p>
+                        ) : data.top_services?.map((s, i) => (
+                            <div key={i} className="d-flex justify-content-between align-items-center mb-3">
+                                <div className="d-flex align-items-center gap-2">
+                                    <span className="badge bg-primary-subtle text-primary rounded-pill" style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                                    <span className="fw-medium small">{s.title}</span>
+                                </div>
+                                <span className="badge bg-light text-dark border rounded-pill px-3">{s.bookings} bookings</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Top Sellers */}
+                <div className="col-lg-6">
+                    <div className="card border-0 shadow-sm p-4 h-100" style={{ borderRadius: 16 }}>
+                        <h5 className="fw-bold mb-4">Top Sellers by Earnings</h5>
+                        {data.top_sellers?.length === 0 ? (
+                            <p className="text-muted small">No data yet.</p>
+                        ) : data.top_sellers?.map((s, i) => (
+                            <div key={i} className="d-flex justify-content-between align-items-center mb-3">
+                                <div className="d-flex align-items-center gap-2">
+                                    <span className="badge bg-success-subtle text-success rounded-pill" style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                                    <span className="fw-medium small">{s.name}</span>
+                                </div>
+                                <span className="badge bg-light text-dark border rounded-pill px-3">₹{s.earnings}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Pending Approvals */}
             <div className="card border-0 shadow-sm p-4" style={{ borderRadius: 16 }}>
                 <div className="d-flex justify-content-between align-items-center mb-4">
                     <h5 className="fw-bold mb-0">Pending Provider Approvals</h5>

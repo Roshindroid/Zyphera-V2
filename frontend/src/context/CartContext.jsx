@@ -10,7 +10,7 @@ export const CartProvider = ({ children }) => {
 
   const refreshCartCount = async () => {
     try {
-      if (user?.role !== 'buyer') return
+      if (!user || user.role !== 'buyer') { setCartCount(0); return }
       const r = await api.get('/cart/')
       setCartCount(r.data?.count ?? 0)
     } catch {

@@ -2,12 +2,17 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
+import { useLocation } from '../../context/LocationContext'
+import LocationPicker from '../../components/LocationPicker'
 import { toast, toastAuto, confirm } from '../../utils/toast'
 
 export default function EditProfile() {
     const { user, logout } = useAuth()
+    const { buyerLocation, setLocation, detectCurrentLocation } = useLocation()
     const navigate = useNavigate()
     const [form, setForm] = useState({ full_name: '', email: '', phone: '', location: '' })
+    const [showPicker, setShowPicker] = useState(false)
+    const [detecting, setDetecting] = useState(false)
     const [pwForm, setPwForm] = useState({ current_password: '', new_password: '', confirm_password: '' })
     const [deletePassword, setDeletePassword] = useState('')
     const [showPw, setShowPw] = useState({ current: false, new: false, confirm: false })
@@ -18,6 +23,18 @@ export default function EditProfile() {
             setForm({ full_name: u.full_name || '', email: u.email || '', phone: u.phone || '', location: u.location || '' })
         }).catch(() => {})
     }, [])
+
+    const handleDetect = async () => {
+        setDetecting(true)
+        try {
+            const loc = await detectCurrentLocation()
+            await setLocation(loc)
+        } catch {
+            toast('error', 'Location Error', 'Could not detect your location.')
+        } finally {
+            setDetecting(false)
+        }
+    }
 
     const handleProfileSubmit = async (e) => {
         e.preventDefault()
@@ -87,6 +104,7 @@ export default function EditProfile() {
 
     return (
         <>
+            {showPicker && <LocationPicker onClose={() => setShowPicker(false)} />}
             <nav className="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-3 mb-4">
                 <div className="container">
                     <Link className="navbar-brand brand-name" to="/" style={{ fontSize: '1.5rem', color: '#007bff' }}>Zyphera</Link>
@@ -136,6 +154,52 @@ export default function EditProfile() {
                                     <button type="submit" className="btn btn-primary w-100 py-3">Update Profile</button>
                                 </div>
                             </form>
+                        </div>
+
+                        {/* -- Location -- */}
+                        <div className="contact-form-card border-0 shadow-sm mb-4">
+                            <h5 className="fw-semibold mb-1">Your Location</h5>
+                            <p className="text-muted small mb-4">Used to find services near you.</p>
+                            <div className="d-flex align-items-center gap-3 flex-wrap">
+                                <div className="flex-grow-1">
+                                    <div className="input-group">
+                                        <span className="input-group-text bg-light border-end-0">
+                                            <i className="bi bi-geo-alt text-primary"></i>
+                                        </span>
+                                        <input
+                                            type="text"
+                                            className="form-control bg-light border-start-0"
+                                            readOnly
+                                            value={buyerLocation?.address || 'No location set'}
+                                        />
+                                    </div>
+                                    {buyerLocation?.lat && (
+                                        <p className="text-muted small mt-1 mb-0">
+                                            {buyerLocation.lat.toFixed(5)}, {buyerLocation.lng.toFixed(5)}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="d-flex gap-2">
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-secondary btn-sm"
+                                        onClick={handleDetect}
+                                        disabled={detecting}
+                                    >
+                                        {detecting
+                                            ? <span className="spinner-border spinner-border-sm me-1"></span>
+                                            : <i className="bi bi-crosshair me-1"></i>}
+                                        Detect
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary btn-sm"
+                                        onClick={() => setShowPicker(true)}
+                                    >
+                                        <i className="bi bi-map me-1"></i>Change
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         {/* -- Reset Password -- */}

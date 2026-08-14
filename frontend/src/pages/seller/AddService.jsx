@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
+import MapPicker from '../../components/MapPicker'
 import { toast, toastAuto } from '../../utils/toast'
 
 export default function AddService() {
@@ -8,6 +9,12 @@ export default function AddService() {
     const [categories, setCategories] = useState([])
     const [form, setForm] = useState({ title: '', description: '', price: '', price_unit: 'hr', category_id: '' })
     const [image, setImage] = useState(null)
+    const [locForm, setLocForm] = useState({
+        address: '', latitude: '', longitude: '',
+        radius_km: 10, free_radius_km: 2,
+        price_per_km: 0, platform_fee: 25,
+        peak_hour_pct: 0, weekend_pct: 0, emergency_fee: 0,
+    })
 
     const [loading, setLoading] = useState(false)
 
@@ -22,6 +29,9 @@ export default function AddService() {
             const data = new FormData()
             Object.entries(form).forEach(([k, v]) => data.append(k, v))
             if (image) data.append('image', image)
+            if (locForm.latitude && locForm.longitude) {
+                Object.entries(locForm).forEach(([k, v]) => data.append(k, v))
+            }
             await api.post('/seller/services/', data)
             await toastAuto('success', 'Service Published', `"${form.title}" is now live.`)
             navigate('/seller/services')
@@ -81,6 +91,64 @@ export default function AddService() {
                                     <label className="form-label">Service Description</label>
                                     <textarea className="form-control" rows="5" placeholder="Describe what you offer in detail..." value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required></textarea>
                                 </div>
+
+                                <div className="col-12 mt-3">
+                                    <h5 className="fw-bold mb-0">Service Location</h5>
+                                    <p className="text-muted small mb-3">Where does the technician travel from? This is used to calculate distance and travel fees.</p>
+                                    <MapPicker value={locForm} onChange={setLocForm} />
+                                </div>
+
+                                <div className="col-12 mt-2">
+                                    <h5 className="fw-bold mb-0">Coverage & Pricing Rules</h5>
+                                    <p className="text-muted small mb-3">Optional. Configure radius and travel fees.</p>
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label">Service Radius (km)</label>
+                                    <input type="number" className="form-control" min="1" value={locForm.radius_km}
+                                        onChange={e => setLocForm(p => ({ ...p, radius_km: e.target.value }))} />
+                                    <div className="form-text">Max distance you'll travel to serve a customer.</div>
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label">Free Travel Radius (km)</label>
+                                    <input type="number" className="form-control" min="0" value={locForm.free_radius_km}
+                                        onChange={e => setLocForm(p => ({ ...p, free_radius_km: e.target.value }))} />
+                                    <div className="form-text">No travel fee within this distance.</div>
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label">Price Per Km (₹)</label>
+                                    <div className="input-group">
+                                        <span className="input-group-text bg-white">₹</span>
+                                        <input type="number" className="form-control" min="0" value={locForm.price_per_km}
+                                            onChange={e => setLocForm(p => ({ ...p, price_per_km: e.target.value }))} />
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label">Platform Fee (₹)</label>
+                                    <div className="input-group">
+                                        <span className="input-group-text bg-white">₹</span>
+                                        <input type="number" className="form-control" min="0" value={locForm.platform_fee}
+                                            onChange={e => setLocForm(p => ({ ...p, platform_fee: e.target.value }))} />
+                                    </div>
+                                </div>
+                                <div className="col-md-4">
+                                    <label className="form-label">Peak Hour Surge (%)</label>
+                                    <input type="number" className="form-control" min="0" max="100" value={locForm.peak_hour_pct}
+                                        onChange={e => setLocForm(p => ({ ...p, peak_hour_pct: e.target.value }))} />
+                                </div>
+                                <div className="col-md-4">
+                                    <label className="form-label">Weekend Surge (%)</label>
+                                    <input type="number" className="form-control" min="0" max="100" value={locForm.weekend_pct}
+                                        onChange={e => setLocForm(p => ({ ...p, weekend_pct: e.target.value }))} />
+                                </div>
+                                <div className="col-md-4">
+                                    <label className="form-label">Emergency Fee (₹)</label>
+                                    <div className="input-group">
+                                        <span className="input-group-text bg-white">₹</span>
+                                        <input type="number" className="form-control" min="0" value={locForm.emergency_fee}
+                                            onChange={e => setLocForm(p => ({ ...p, emergency_fee: e.target.value }))} />
+                                    </div>
+                                </div>
+
                                 <div className="col-12 mt-4">
                                     <button type="submit" className="btn btn-primary w-100 py-3" disabled={loading}>
                                         {loading ? 'Publishing...' : 'Publish Service'}

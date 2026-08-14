@@ -27,6 +27,7 @@ export default function Navbar() {
     }
 
     return (
+        <>
         <nav className={`navbar navbar-expand-lg fixed-top py-0 ${scrolled ? 'navbar-scrolled navbar-light' : 'navbar-dark'}`}>
             <div className="container">
                 <Link className="navbar-brand brand-name" to="/">Zyphera</Link>
@@ -81,5 +82,6 @@ export default function Navbar() {
                 </div>
             </div>
         </nav>
+        </>
     )
 }

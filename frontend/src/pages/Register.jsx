@@ -13,6 +13,7 @@ export default function Register() {
     })
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirm, setShowConfirm] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
     const isSeller = form.role === 'seller'
 
     const [touched, setTouched] = useState({
@@ -52,6 +53,9 @@ export default function Register() {
     const handleSubmit = async (e) => {
         e.preventDefault()
 
+        // Ignore duplicate submissions while a request is in flight
+        if (isSubmitting) return
+
         // Final guard (same regex rules as v1)
         if (!isEmailValid) {
             toast('error', 'Invalid email', 'Please enter a valid email address.')
@@ -77,6 +81,8 @@ export default function Register() {
             return
         }
 
+        setIsSubmitting(true)
+
         try {
             const payload = {
                 username: form.username,
@@ -99,6 +105,8 @@ export default function Register() {
                 navigate('/login')
             }
         } catch (err) {
+            // Re-enable the form ONLY on failure.
+            setIsSubmitting(false)
             toast('error', 'Registration Failed', Object.values(err.response?.data || {})[0]?.[0] || 'Registration failed')
         }
     }
@@ -135,6 +143,7 @@ export default function Register() {
                         update(field)(e)
                     }}
                     onBlur={() => setTouched({ ...touched, [field]: true })}
+                    disabled={isSubmitting}
                     {...extra}
                 />
             </div>
@@ -184,12 +193,14 @@ export default function Register() {
                                             update('password')(e)
                                         }}
                                         onBlur={() => setTouched({ ...touched, password: true })}
+                                        disabled={isSubmitting}
                                         required
                                     />
 
                                     <button className="input-group-text bg-white border-start-0" type="button"
                                         style={{ borderRadius: '0 12px 12px 0', border: '1.5px solid #e2e8f0', borderLeft: 'none', cursor: 'pointer' }}
-                                        onClick={() => setShowPassword(!showPassword)}>
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        disabled={isSubmitting}>
                                         <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'} text-muted`}></i>
                                     </button>
                                 </div>
@@ -212,12 +223,14 @@ export default function Register() {
                                             update('confirm_password')(e)
                                         }}
                                         onBlur={() => setTouched({ ...touched, confirm_password: true })}
+                                        disabled={isSubmitting}
                                         required
                                     />
 
                                     <button className="input-group-text bg-white border-start-0" type="button"
                                         style={{ borderRadius: '0 12px 12px 0', border: '1.5px solid #e2e8f0', borderLeft: 'none', cursor: 'pointer' }}
-                                        onClick={() => setShowConfirm(!showConfirm)}>
+                                        onClick={() => setShowConfirm(!showConfirm)}
+                                        disabled={isSubmitting}>
                                         <i className={`bi ${showConfirm ? 'bi-eye-slash' : 'bi-eye'} text-muted`}></i>
                                     </button>
                                 </div>
@@ -232,6 +245,7 @@ export default function Register() {
                                         setTouched({ ...touched, role: true })
                                         update('role')(e)
                                     }}
+                                    disabled={isSubmitting}
                                     required
                                 >
                                     <option value="" disabled>Select your role</option>
@@ -272,12 +286,22 @@ export default function Register() {
                                             update('bio')(e)
                                         }}
                                         onBlur={() => setTouched({ ...touched, bio: true })}
+                                        disabled={isSubmitting}
                                     ></textarea>
                                     </div>
                                 </>
                             )}
 
-                            <button type="submit" className="btn btn-primary w-100 mb-3">Create Account</button>
+                            <button type="submit" className="btn btn-primary w-100 mb-3" disabled={isSubmitting}>
+                                {isSubmitting ? (
+                                    <>
+                                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        Creating Account...
+                                    </>
+                                ) : (
+                                    'Create Account'
+                                )}
+                            </button>
 
                             <p className="text-center mb-0" style={{ fontSize: '0.9rem', color: '#64748b' }}>
                                 Already have an account? <Link to="/login" className="text-decoration-none fw-semibold">Sign In</Link>

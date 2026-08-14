@@ -1,71 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api/axios'
-import { toastAuto } from '../utils/toast'
 import { useCart } from '../context/CartContext'
+import BookingModal from '../components/BookingModal'
 
 export default function Cart() {
     const navigate = useNavigate()
     const { refreshCartCount } = useCart()
     const [items, setItems] = useState([])
     const [total, setTotal] = useState(0)
-    const [isCheckoutLoading, setIsCheckoutLoading] = useState(false)
-
-
-
-
-
-
-    const clearCart = async (currentItems) => {
-        // Best-effort server clear; fallback to deleting individual items.
-        try {
-            await api.post('/cart/clear/')
-        } catch {
-            // If cart clear endpoint doesn't exist, remove items one by one.
-            await Promise.all(
-                (currentItems || []).map((it) => api.delete(`/cart/remove/${it.id}/`))
-            )
-        }
-
-        setItems([])
-        setTotal(0)
-        await refreshCartCount()
-    }
-
-
-
-    const handleCheckout = async () => {
-        if (!items.length) return
-        try {
-            setIsCheckoutLoading(true)
-
-
-            const createPayloads = items.map((it) => ({
-                service_id: it.service.id,
-                booking_date: new Date().toISOString(),
-                total_price: it.service.price,
-                address: '',
-                notes: '',
-            }))
-
-            await Promise.all(createPayloads.map((payload) => api.post('/bookings/create/', payload)))
-
-            toastAuto('success', 'Booking confirmed!', 'We’ve received your request.')
-
-
-            // Empty cart after successful checkout
-            await clearCart(items)
-
-            // Redirect to services (not bookings)
-            setTimeout(() => navigate('/services'), 800)
-        } catch (e) {
-            console.error(e)
-            toastAuto('error', 'Checkout failed!', 'Please try again.')
-
-        } finally {
-            setIsCheckoutLoading(false)
-        }
-    }
+    const [bookingService, setBookingService] = useState(null)
 
     const fetchCart = () => {
         api.get('/cart/').then(r => {
@@ -82,9 +26,22 @@ export default function Cart() {
         await refreshCartCount()
     }
 
+    const handleBooked = async (service) => {
+        // remove the booked item from cart
+        const cartItem = items.find(i => i.service.id === service.id)
+        if (cartItem) await removeItem(cartItem.id)
+    }
 
     return (
         <>
+            {bookingService && (
+                <BookingModal
+                    service={bookingService}
+                    onClose={() => setBookingService(null)}
+                    onBooked={() => handleBooked(bookingService)}
+                />
+            )}
+
             <nav className="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-3 mb-4">
                 <div className="container">
                     <Link className="navbar-brand brand-name" to="/" style={{ fontSize: '1.5rem', color: '#007bff' }}>Zyphera</Link>
@@ -102,9 +59,7 @@ export default function Cart() {
                     </ol>
                 </nav>
 
-                <h2 className="fw-bold mb-4">Your Shopping Cart</h2>
-
-
+                <h2 className="fw-bold mb-4">Your Cart</h2>
 
                 {items.length > 0 ? (
                     <div className="row">
@@ -132,6 +87,12 @@ export default function Cart() {
                                                         <i className="bi bi-trash"></i>
                                                     </button>
                                                 </div>
+                                                <button
+                                                    className="btn btn-primary btn-sm rounded-pill px-3 mt-2"
+                                                    onClick={() => setBookingService(item.service)}
+                                                >
+                                                    Book Now
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -144,25 +105,16 @@ export default function Cart() {
                                 <div className="card-body p-4">
                                     <h5 className="fw-bold mb-4">Summary</h5>
                                     <div className="d-flex justify-content-between mb-2">
-                                        <span className="text-muted">Subtotal</span>
+                                        <span className="text-muted">Subtotal ({items.length} service{items.length > 1 ? 's' : ''})</span>
                                         <span>₹{total}</span>
                                     </div>
-                                    <div className="d-flex justify-content-between mb-4">
-                                        <span className="text-muted">Service Fee</span>
-                                        <span className="text-success">Free</span>
-                                    </div>
+                                    <p className="text-muted small">Travel fees are calculated per booking based on your location.</p>
                                     <hr />
                                     <div className="d-flex justify-content-between mb-4">
-                                        <span className="fw-bold">Total</span>
-                                        <span className="fw-bold fs-4 text-primary">₹{total}</span>
+                                        <span className="fw-bold">Estimated Total</span>
+                                        <span className="fw-bold fs-5 text-primary">₹{total}+</span>
                                     </div>
-                                    <button
-                                        className="btn btn-primary btn-lg w-100 rounded-pill py-3"
-                                        onClick={handleCheckout}
-                                        disabled={items.length === 0 || isCheckoutLoading}
-                                    >
-                                        {isCheckoutLoading ? 'Sending request...' : 'Proceed to Checkout'}
-                                    </button>
+                                    <p className="text-muted small text-center">Click "Book Now" on each service to confirm date, address, and final price.</p>
                                 </div>
                             </div>
                         </div>
@@ -179,4 +131,3 @@ export default function Cart() {
         </>
     )
 }
-
